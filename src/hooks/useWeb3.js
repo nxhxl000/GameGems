@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ethers } from "ethers";
+import contractAddresses from '../contracts/contracts.json';
 import GameGemsABI from "../contracts/GameGemsABI.json";
 import GameItemNFTABI from "../contracts/GameItemABI.json";
 
