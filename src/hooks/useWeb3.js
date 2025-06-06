@@ -4,8 +4,8 @@ import contractAddresses from '../contracts/contracts.json';
 import GameGemsABI from "../contracts/GameGemsABI.json";
 import GameItemNFTABI from "../contracts/GameItemABI.json";
 
-const GEM_CONTRACT_ADDRESS = "0xAa013a000781fA897596134FB2C5223cccF10E0d";
-const NFT_CONTRACT_ADDRESS = "0xe719bc5785D4Dfc86dC7406b3bCC6b27ba4ac78f";
+const GEM_CONTRACT_ADDRESS = contractAddresses.GameGems;
+const NFT_CONTRACT_ADDRESS = contractAddresses.GameItemNFT;
 
 export default function useWeb3() {
   const [account, setAccount] = useState(null);
