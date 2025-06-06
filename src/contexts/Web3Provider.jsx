@@ -1,16 +1,20 @@
 import React, { createContext, useContext, useState } from "react";
 import { ethers } from "ethers";
 import axios from "axios";
+import contractAddresses from '../contracts/contracts.json';
 import GameGemsABI from "../contracts/GameGemsABI.json";
 import GameItemABI from "../contracts/GameItemABI.json";
 import GameMarketplaceABI from "../contracts/GameMarketplaceABI.json";
 
+
 const Web3Context = createContext(null);
 export { Web3Context };
 
-const GEM_CONTRACT_ADDRESS = "0xAa013a000781fA897596134FB2C5223cccF10E0d";
-const NFT_CONTRACT_ADDRESS = "0xe719bc5785D4Dfc86dC7406b3bCC6b27ba4ac78f";
-const MARKETPLACE_CONTRACT_ADDRESS = "0xfaEC6165e307285d59bdC6BB15EdC6560bAEe2C7";
+const GEM_CONTRACT_ADDRESS = contractAddresses.GameGems;
+const NFT_CONTRACT_ADDRESS = contractAddresses.GameItemNFT;
+const MARKETPLACE_CONTRACT_ADDRESS = contractAddresses.GameMarketplace;
+
+
 export const BACKEND_URL = "http://127.0.0.1:8000";
 
 const getLocalGems = (address) => {
