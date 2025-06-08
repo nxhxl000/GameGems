@@ -22,7 +22,6 @@ jobs:
           pip install -r requirements.txt
       - name: Запуск тестов backend
         run: |
-          cd backend
           pytest test/test_api.py
 
   frontend-tests:
@@ -44,14 +43,19 @@ jobs:
     name: Тесты смарт-контрактов
     steps:
       - uses: actions/checkout@v3
+  
       - name: Установка Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
-      - name: Установка зависимостей и тестов
-        run: |
-          npm install
-          npx hardhat test
+  
+      - name: Установка зависимостей
+        run: npm install
+  
+      - name: Запуск тестов Hardhat
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: npx hardhat test
 
   ml-model-tests:
     runs-on: ubuntu-latest
