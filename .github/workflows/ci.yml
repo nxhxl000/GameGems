@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Тесты backend
     env:                          
-        BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-        AWS_ACCESS_KEY_ID: ${{ secrets.S3_KEY }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET }}
-        AWS_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+      BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET }}
+      AWS_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
     steps:
       - uses: actions/checkout@v3
       - name: Установка Python
@@ -25,9 +25,11 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
+      - name: Вывод имени бакета
+        run: echo "BUCKET_NAME is $BUCKET_NAME"
       - name: Запуск тестов backend
         run: |
-          pytest test/test_api.py
+          pytest test/test_api.pyy
 
   frontend-tests:
     runs-on: ubuntu-latest
