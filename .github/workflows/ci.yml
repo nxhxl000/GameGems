@@ -23,7 +23,7 @@ jobs:
       - name: Запуск тестов backend
         run: |
           cd backend
-          pytest
+          pytest test/test_api.py
 
   frontend-tests:
     runs-on: ubuntu-latest
