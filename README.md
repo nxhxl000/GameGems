@@ -111,7 +111,7 @@ npx hardhat run contracts/deploy.cjs --network ganache
 Разворачивает 3 контракта: GameItemNFT, GameGems, GameMarketplace.
 Сохраняет адреса в файл: contracts/contracts.json
 Сохраняет ABI всех контрактов в src/contracts/*.json
-Устанавливает связь между GameItemNFT и GameGems.
+Устанавливает связь между смарт-контрактами
 ```
 ## ✅ Тестирование смарт-контрактов
 Убедись, что установлен hardhat и все зависимости:
