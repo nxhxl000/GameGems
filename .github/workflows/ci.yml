@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Тесты backend
     env:                          
-      BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
       AWS_ACCESS_KEY_ID: ${{ secrets.S3_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET }}
       AWS_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
