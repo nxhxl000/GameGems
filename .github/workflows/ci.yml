@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    name: Тесты backend
+    steps:
+      - uses: actions/checkout@v3
+      - name: Установка Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+      - name: Установка зависимостей
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      - name: Запуск тестов backend
+        run: |
+          cd backend
+          pytest
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    name: Тесты frontend
+    steps:
+      - uses: actions/checkout@v3
+      - name: Установка Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - name: Установка зависимостей и запуск тестов
+        run: |
+          npm install
+          npm run test
+
+  contracts-tests:
+    runs-on: ubuntu-latest
+    name: Тесты смарт-контрактов
+    steps:
+      - uses: actions/checkout@v3
+      - name: Установка Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - name: Установка зависимостей и тестов
+        run: |
+          npm install
+          npx hardhat test
+
+  ml-model-tests:
+    runs-on: ubuntu-latest
+    name: Тесты ML-модели
+    steps:
+      - uses: actions/checkout@v3
+      - name: Установка Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+      - name: Установка зависимостей
+        run: |
+          pip install -r backend/requirements.txt
+      - name: Запуск тестов ML
+        run: |
+          pytest ml_model/test_model.py
