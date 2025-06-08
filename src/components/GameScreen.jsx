@@ -8,6 +8,30 @@ import WrapNFTPanel from "../components/WrapNFTPanel";
 import { LayoutPanelLeft } from 'lucide-react';
 import axios from "axios";
 
+
+const fetchLocalGems = async (backendUrl, account, setLocalGems) => {
+  try {
+    const res = await axios.get(`${backendUrl}/profile/${account}`);
+    if (res.data && typeof res.data.local_gems === 'number') {
+      console.log("🎯 Получены локальные GEM из профиля:", res.data.local_gems);
+      setLocalGems(res.data.local_gems);
+    }
+  } catch (err) {
+    console.error("⚠️ Ошибка загрузки профиля:", err);
+  }
+};
+
+const saveLocalGems = async (backendUrl, account, gems) => {
+  try {
+    await axios.patch(`${backendUrl}/profile/${account}`, {
+      local_gems: gems,
+    });
+    console.log("💾 Локальные GEM сохранены в профиль:", gems);
+  } catch (err) {
+    console.error("⚠️ Ошибка сохранения локальных GEM:", err);
+  }
+};
+
 const EQUIPMENT_SLOTS = ["Pickaxe", "Gloves", "Boots", "Vest", "Lamp",];
 const INVENTORY_TABS = [...EQUIPMENT_SLOTS, "NFT"];
 
@@ -23,6 +47,39 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
   const [tooltip, setTooltip] = React.useState({ visible: false, x: 0, y: 0, item: null });
   const [sellPrices, setSellPrices] = React.useState({});
 
+
+  React.useEffect(() => {
+    if (account && backendUrl) {
+      fetchLocalGems(backendUrl, account, setLocalGems);
+    }
+  }, [account, backendUrl]);
+
+  React.useEffect(() => {
+    if (!account) return;
+
+    localStorage.removeItem("equipment");
+
+    const saved = localStorage.getItem(`equipment_${account}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          setEquipment(parsed);
+          console.log("✅ Загружено снаряжение из localStorage:", parsed);
+        }
+      } catch (err) {
+        console.error("❌ Ошибка при парсинге equipment из localStorage", err);
+      }
+    }
+  }, [account])
+  
+  React.useEffect(() => {
+    if (account && Object.keys(equipment).length > 0) {
+      localStorage.setItem(`equipment_${account}`, JSON.stringify(equipment));
+      console.log("💾 Сохранено снаряжение в localStorage:", equipment);
+    }
+  }, [equipment, account]);
+
   React.useEffect(() => {
     console.log("🔐 Аккаунт:", account);
     console.log("📦 Локальные GEM (из контекста):", localGems);
@@ -32,80 +89,105 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
     const loadInventory = async () => {
       try {
         const res = await axios.get(`${backendUrl}/inventory/${account}`);
-        // Проверим структуру
-        console.log("Загруженный инвентарь:", res.data);
+        let loaded = [];
+
         if (Array.isArray(res.data)) {
-          setInventory(res.data);
+          loaded = res.data;
         } else if (res.data && Array.isArray(res.data.items)) {
-          setInventory(res.data.items);
+          loaded = res.data.items;
         } else {
           console.warn("Неверный формат инвентаря:", res.data);
-          setInventory([]);
         }
+
+        // 🧪 ID экипированных предметов
+        const equippedIds = Object.values(equipment)
+          .filter((item) => item?.id)
+          .map((item) => item.id);
+
+        console.log("📥 Загружен инвентарь:", loaded);
+        console.log("🧪 Удалим экипированные ID:", equippedIds);
+
+        // 🧹 Удалим дубликаты
+        const filtered = loaded.filter((item) => !equippedIds.includes(item.id));
+        console.log("📤 Очищенный инвентарь:", filtered);
+
+        setInventory(filtered);
       } catch (err) {
         console.error("Ошибка загрузки инвентаря:", err);
         showPopup("⚠️ Не удалось загрузить инвентарь");
       }
     };
-    if (account) loadInventory();
-  }, [account, backendUrl]);
+    if (account && backendUrl) loadInventory();
+  }, [account, backendUrl, equipment]);
 
   React.useEffect(() => {
-  const loadNFTs = async () => {
-    if (!account || !nftContract) {
-      console.warn("Нет аккаунта или контракта NFT, пропускаем загрузку NFT");
-      setNftInventory([]);
-      return;
-    }
-
-    try {
-      // Получаем все NFT с бекенда
-      const res = await axios.get(`${backendUrl}/nft`);
-      const allNFTs = Array.isArray(res.data) ? res.data : [];
-      console.log("🎫 Загруженные NFT с бэка:", allNFTs);
-
-      const ownedNFTs = [];
-      // Проверяем владельца каждого NFT по контракту
-      for (const item of allNFTs) {
-        try {
-          const ownerOnChain = await nftContract.ownerOf(item.tokenId);
-          if (ownerOnChain.toLowerCase() === account.toLowerCase()) {
-            ownedNFTs.push(item);
-          }
-        } catch (err) {
-          console.warn(`Ошибка проверки владельца токена ${item.tokenId}`, err);
-        }
+    const loadNFTs = async () => {
+      if (!account || !nftContract) {
+        console.warn("Нет аккаунта или контракта NFT, пропускаем загрузку NFT");
+        setNftInventory([]);
+        return;
       }
 
-      console.log(`✅ NFT, принадлежащие аккаунту ${account}:`, ownedNFTs);
-      setNftInventory(ownedNFTs);
+      if (!equipment || Object.keys(equipment).length === 0) {
+        console.log("⏳ Ожидаем загрузку equipment перед загрузкой NFT");
+        return;
+      }
 
-      // 🔧 Добавляем виртуальные предметы из NFT
-      const virtualItemsFromNFTs = ownedNFTs.map(nft => ({
-        id: `nft-${nft.tokenId}`,
-        type: nft.itemType,
-        rarity: nft.rarity,
-        image: nft.image,
-        attributes: {
-          [nft.bonus.attribute]: nft.bonus.value
-        },
-        fromNFT: true
-      }));
+      try {
+        const res = await axios.get(`${backendUrl}/nft`);
+        const allNFTs = Array.isArray(res.data) ? res.data : [];
+        console.log("🎫 Загруженные NFT с бэка:", allNFTs);
 
-      setInventory((prev) => {
-        const filtered = prev.filter(item => !item.fromNFT);
-        return [...filtered, ...virtualItemsFromNFTs];
-      });
+        const ownedNFTs = [];
+        for (const item of allNFTs) {
+          try {
+            const ownerOnChain = await nftContract.ownerOf(item.tokenId);
+            if (ownerOnChain.toLowerCase() === account.toLowerCase()) {
+              ownedNFTs.push(item);
+            }
+          } catch (err) {
+            console.warn(`Ошибка проверки владельца токена ${item.tokenId}`, err);
+          }
+        }
 
-    } catch (err) {
-      console.error("Ошибка загрузки NFT:", err);
-      setNftInventory([]);
-      showPopup("⚠️ Не удалось загрузить NFT");
-    }
-  };
+        console.log(`✅ NFT, принадлежащие аккаунту ${account}:`, ownedNFTs);
+        setNftInventory(ownedNFTs);
+
+        const equippedNFTIds = Object.values(equipment)
+          .filter((item) => item?.fromNFT)
+          .map((item) => item.id);
+
+        console.log("🧪 ID экипированных NFT:", equippedNFTIds);
+
+        const virtualItemsFromNFTs = ownedNFTs
+          .map(nft => ({
+            id: `nft-${nft.tokenId}`,
+            type: nft.itemType,
+            rarity: nft.rarity,
+            image: nft.image,
+            attributes: {
+              [nft.bonus.attribute]: nft.bonus.value
+            },
+            fromNFT: true
+          }))
+          .filter(item => !equippedNFTIds.includes(item.id));
+
+        console.log("🎯 NFT для инвентаря:", virtualItemsFromNFTs);
+
+        setInventory((prev) => {
+          const filtered = prev.filter(item => !item.fromNFT);
+          return [...filtered, ...virtualItemsFromNFTs];
+        });
+
+      } catch (err) {
+        console.error("Ошибка загрузки NFT:", err);
+        setNftInventory([]);
+        showPopup("⚠️ Не удалось загрузить NFT");
+      }
+    };
 
   loadNFTs();
-}, [account, backendUrl, nftContract]);
+  }, [account, backendUrl, nftContract, equipment]); // 🧠 equipment обязательно!
 
   React.useEffect(() => {
     const fetchPrices = async () => {
@@ -213,30 +295,51 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
   };
 
   const onDropToInventory = (e) => {
-    e.preventDefault();
-    const item = JSON.parse(e.dataTransfer.getData("item"));
+  e.preventDefault();
+  const item = JSON.parse(e.dataTransfer.getData("item"));
 
-    setEquipment((prev) => {
-      const newEquip = { ...prev };
-      for (const slot in newEquip) {
-        if (newEquip[slot]?.id === item.id) {
-          delete newEquip[slot];
-          break;
-        }
+  setEquipment((prev) => {
+    const newEquip = { ...prev };
+    for (const slot in newEquip) {
+      if (newEquip[slot]?.id === item.id) {
+        delete newEquip[slot];
+        break;
       }
-      return newEquip;
-    });
+    }
+    return newEquip;
+  });
 
-    setInventory((prev) => {
-      if (prev.find((i) => i.id === item.id)) return prev;
-      return [...prev, item];
-    });
-    setTooltip({ visible: false, x: 0, y: 0, item: null });
-  };
+  // ⚠️ Не добавляем обратно NFT-предметы
+  if (item.fromNFT) {
+    console.log("🔁 NFT-предмет удалён из снаряжения, не добавляем в inventory:", item);
+    return;
+  }
+
+  setInventory((prev) => {
+    if (prev.find((i) => i.id === item.id)) return prev;
+    return [...prev, item];
+  });
+
+  setTooltip({ visible: false, x: 0, y: 0, item: null });
+};
 
   const onDragOverInventory = (e) => {
     e.preventDefault();
   };
+  
+  const handleSafeNavigation = async (callback) => {
+  try {
+    if (account && backendUrl) {
+      await axios.patch(`${backendUrl}/profile/${account}`, {
+        local_gems: localGems
+      });
+      console.log("💾 [safe-nav] Локальные GEM сохранены перед переходом:", localGems);
+    }
+  } catch (err) {
+    console.error("❌ Ошибка при сохранении перед переходом:", err);
+  }
+  callback();
+};
 
 
   return (
@@ -247,9 +350,9 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
 
       <div className="sidebar-slideout">
         <div className="account-menu">
-          <button onClick={onAccountPage}>Аккаунт</button>
-          <button onClick={onBack}>Выйти</button>
-          <button onClick={onMarketplace}>🛒 Магазин</button> {/* ← ДОБАВИЛИ КНОПКУ */}
+          <button onClick={() => handleSafeNavigation(onAccountPage)}>Аккаунт</button>
+          <button onClick={() => handleSafeNavigation(onBack)}>Выйти</button>
+          <button onClick={() => handleSafeNavigation(onMarketplace)}>🛒 Магазин</button>
         </div>
       </div>
 
@@ -365,7 +468,7 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
                     <strong>{slot}</strong>
                     {equipment[slot] ? (
                       <div
-                      className="item"
+                      className={`item ${equipment[slot]?.fromNFT ? 'nft-border' : ''}`}
                       draggable
                       onDragStart={(e) =>
                         e.dataTransfer.setData("item", JSON.stringify(equipment[slot]))
@@ -427,7 +530,7 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
                   .map((item) => (
                     <div
                       key={item.id}
-                      className="item"
+                      className={`item ${item.fromNFT ? 'nft-border' : ''}`}
                       draggable
                       onDragStart={(e) => e.dataTransfer.setData("item", JSON.stringify(item))}
                       onMouseEnter={(e) => handleMouseEnter(e, item)}

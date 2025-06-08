@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import axios from "axios";
-import { BACKEND_URL } from "../contexts/Web3Provider";
+import { BACKEND_URL, useWeb3 } from "../contexts/Web3Provider";
 
-export default function useAdminData(contract, isActive, currentAccount) {
+export default function useAdminData(isActive, currentAccount) {
+  const { gemContract: contract } = useWeb3();
+
   const [totalSupply, setTotalSupply] = useState(0);
   const [availableForSale, setAvailableForSale] = useState(0);
   const [accounts, setAccounts] = useState([]);
@@ -13,69 +15,66 @@ export default function useAdminData(contract, isActive, currentAccount) {
   const [isAdminReady, setIsAdminReady] = useState(false);
 
   const refreshAdminData = async () => {
-    console.log("🔁 refreshAdminData вызван");
-    if (!contract || !contract.runner?.provider) {
-      console.warn("⚠️ Нет контракта или provider");
-      return;
-    }
+    console.log("🔁 [refreshAdminData] Запущен");
+
+    if (!contract || !contract.runner?.provider) return;
 
     try {
-      console.log("📡 Получаем totalSupply и admin...");
       const [supplyRaw, adminAddr, availableRaw] = await Promise.all([
         contract.totalSupply(),
         contract.admin(),
-        contract.availableForSale(), // ← добавили это
+        contract.availableForSale(),
       ]);
 
-      console.log("✅ admin =", adminAddr, " currentAccount =", currentAccount);
-
       setAdminAddress(adminAddr);
+
       const isRealAdmin = currentAccount?.toLowerCase() === adminAddr.toLowerCase();
       setIsAdmin(isRealAdmin);
       setIsAdminReady(true);
-      if (!isRealAdmin) {
-        console.warn("🚫 Не админ — не загружаем профили");
-        return;
-      }
+
+      if (!isRealAdmin) return;
 
       setTotalSupply(Number(supplyRaw));
       setAvailableForSale(Number(availableRaw));
-      console.log("📦 totalSupply:", Number(supplyRaw));
-      console.log("🛒 AvailableForSale:", Number(availableRaw));
 
-      // 📥 Загрузка профилей из backend (а не из localStorage)
-      const res = await axios.get(`${BACKEND_URL}/profiles`);
-      const profiles = res.data || [];
-      console.log(`📄 Загружено ${profiles.length} профилей из S3`);
+      const resp = await axios.get(`${BACKEND_URL}/profiles`);
+      const profiles = resp.data;
 
-      // 💰 Получение баланса GEM
-      const balances = await Promise.all(
-        profiles.map(async (profile) => {
-          const bal = await contract.balanceOf(profile.address);
-          return {
-            ...profile,
-            balance: Number(bal),
-          };
+      console.log(`📄 [refreshAdminData] Получено ${profiles.length} профилей`);
+
+      const enrichedProfiles = await Promise.all(
+        profiles.map(async (profile, i) => {
+          try {
+            const rawAddress = profile.address?.trim();
+            if (!ethers.isAddress(rawAddress)) return null;
+
+            const balance = await contract.balanceOf(rawAddress);
+            return {
+              username: profile.nickname,
+              address: rawAddress,
+              balance: Number(balance),
+            };
+          } catch {
+            return null;
+          }
         })
       );
 
-      setAccounts(balances);
+      const validAccounts = enrichedProfiles.filter(Boolean);
+      setAccounts(validAccounts);
+      console.log(`✅ [refreshAdminData] Загружено ${validAccounts.length} аккаунтов`);
 
-      // 💸 ETH на контракте
       const provider = contract.runner.provider;
-      const ethBal = await provider.getBalance(contract.target || contract.address);
-      const formatted = Number(ethers.formatEther(ethBal)).toExponential(8);
-      setEthBalance(formatted);
-
-      console.log("💸 Баланс контракта (ETH):", formatted);
+      const ethBalRaw = await provider.getBalance(contract.target || contract.address);
+      const ethFormatted = Number(ethers.formatEther(ethBalRaw)).toExponential(8);
+      setEthBalance(ethFormatted);
     } catch (e) {
-      console.error("❌ Ошибка в refreshAdminData:", e);
+      console.error("❌ [refreshAdminData] Общая ошибка:", e);
       setIsAdminReady(true);
     }
   };
 
   const exportAccounts = () => {
-    console.log("📤 Экспорт аккаунтов в CSV");
     const csv = ["Имя,Адрес,Баланс GEM"];
     accounts.forEach((acc) => {
       csv.push(`${acc.nickname || ""},${acc.address},${acc.balance}`);
@@ -94,8 +93,7 @@ export default function useAdminData(contract, isActive, currentAccount) {
       await tx.wait();
       await refreshAdminData();
       alert("✅ ETH выведены");
-    } catch (err) {
-      console.error("❌ Ошибка вывода ETH:", err);
+    } catch {
       alert("Не удалось вывести ETH");
     }
   };
@@ -107,19 +105,12 @@ export default function useAdminData(contract, isActive, currentAccount) {
       await tx.wait();
       await refreshAdminData();
       alert(`✅ Добавлено ${amount} GEM`);
-    } catch (err) {
-      console.error("❌ Ошибка дропа токенов:", err);
+    } catch {
       alert("Не удалось дропнуть токены");
     }
   };
 
   useEffect(() => {
-    console.log("🚀 useEffect сработал:", { isActive, currentAccount, contract });
-    if (!isActive || !currentAccount) {
-      console.warn("⛔ useEffect не активен");
-      return;
-    }
-
     refreshAdminData();
     const interval = setInterval(refreshAdminData, 10000);
     return () => clearInterval(interval);
@@ -127,7 +118,7 @@ export default function useAdminData(contract, isActive, currentAccount) {
 
   return {
     totalSupply: isAdmin ? totalSupply : 0,
-    availableForSale: isAdmin ? availableForSale : 0, // ← обязательно
+    availableForSale: isAdmin ? availableForSale : 0,
     accounts: isAdmin ? accounts : [],
     ethBalance: isAdmin ? ethBalance : 0,
     adminAddress,

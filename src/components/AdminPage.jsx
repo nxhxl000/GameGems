@@ -70,7 +70,6 @@ export default function AdminPage({
     if (sortBy === "balance") {
       return sortAsc ? a.balance - b.balance : b.balance - a.balance;
     }
-    return 0;
   });
 
   const handleDrop = () => {
@@ -94,7 +93,15 @@ export default function AdminPage({
       <div className="admin-actions">
         <button onClick={onRefresh}>🔄 Обновить</button>
         <button onClick={onExport}>📤 Экспорт</button>
-        <button onClick={onWithdraw}>💸 Вывод ETH</button>
+        <button
+          onClick={() => {
+            if (window.confirm("Вы уверены, что хотите вывести ETH?")) {
+              onWithdraw();
+            }
+          }}
+        >
+          💸 Вывод ETH
+        </button>
         <button onClick={onBack}>↩️ Назад</button>
       </div>
 

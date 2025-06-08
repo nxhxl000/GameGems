@@ -5,14 +5,16 @@ import { useWeb3 } from "../contexts/Web3Provider";
 
 export default function useTransactionHistory(account, provider) {
   const [history, setHistory] = useState([]);
-  const { gameGemsAddress } = useWeb3(); // <-- получаем адрес из контекста
+  const { gemContract } = useWeb3(); // получаем контракт из контекста
 
   useEffect(() => {
     const loadHistory = async () => {
-      if (!account || !provider || !gameGemsAddress) return;
+      if (!account || !provider || !gemContract) return;
 
-      const contract = new ethers.Contract(gameGemsAddress, GameGemsABI, provider);
+      // получаем адрес из контракта: .target для ethers v6, .address для v5
+      const contractAddress = gemContract.target || gemContract.address;
 
+      const contract = new ethers.Contract(contractAddress, GameGemsABI, provider);
       const purchased = await contract.queryFilter(contract.filters.GemsPurchased(account));
       const deposited = await contract.queryFilter(contract.filters.GemsDeposited(account));
       const drops = await contract.queryFilter(contract.filters.ItemDropped(account));
@@ -28,7 +30,8 @@ export default function useTransactionHistory(account, provider) {
     };
 
     loadHistory();
-  }, [account, provider, gameGemsAddress]); // добавим зависимость
+
+  }, [account, provider, gemContract]);
 
   return history;
 }

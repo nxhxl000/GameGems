@@ -1,6 +1,7 @@
 import "../styles/AccountPage.css";
 import { useState } from "react";
 import { useWeb3 } from "../contexts/Web3Provider";
+import axios from "axios";
 
 export default function AccountPage({
   account,
@@ -14,25 +15,25 @@ export default function AccountPage({
   gemPrice,
 }) {
   const [localAmount, setLocalAmount] = useState("");
-  const { txHistory, fetchHistory, localGems } = useWeb3(); // ✅ fetchHistory добавлен
+ const { txHistory, fetchHistory, localGems, setLocalGems, backendUrl } = useWeb3();
 
   const handleSend = async () => {
-    const amount = parseInt(localAmount, 10);
-    if (isNaN(amount) || amount <= 0) {
-      alert("Введите положительное количество GEM");
-      return;
-    }
-    if (amount > localGems) {
-      alert("Недостаточно локальных GEM");
-      return;
-    }
+  const amount = parseInt(localAmount, 10);
+  if (isNaN(amount) || amount <= 0) {
+    alert("Введите положительное количество GEM");
+    return;
+  }
+  if (amount > localGems) {
+    alert("Недостаточно локальных GEM");
+    return;
+  }
 
-    const success = await onSendLocalGems(amount);
-    if (success) {
-      setLocalAmount("");
-      await fetchHistory(); // ✅ обновление истории
-    }
-  };
+  const success = await onSendLocalGems(amount);
+  if (success) {
+    setLocalAmount("");
+    await fetchHistory();
+  }
+};
 
   const handleBuy = async () => {
     await onBuyGems();         // ✅ вызов оригинальной функции

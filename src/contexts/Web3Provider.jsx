@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from "react";
 import { ethers } from "ethers";
 import axios from "axios";
-import contractAddresses from '../contracts/contracts.json';
+import contractAddresses from '../../contracts/contracts.json';
 import GameGemsABI from "../contracts/GameGemsABI.json";
 import GameItemABI from "../contracts/GameItemABI.json";
 import GameMarketplaceABI from "../contracts/GameMarketplaceABI.json";
@@ -13,21 +13,7 @@ export { Web3Context };
 const GEM_CONTRACT_ADDRESS = contractAddresses.GameGems;
 const NFT_CONTRACT_ADDRESS = contractAddresses.GameItemNFT;
 const MARKETPLACE_CONTRACT_ADDRESS = contractAddresses.GameMarketplace;
-
-
 export const BACKEND_URL = "http://127.0.0.1:8000";
-
-const getLocalGems = (address) => {
-  const saved = JSON.parse(localStorage.getItem("localGems") || "{}");
-  return saved[address.toLowerCase()] || 0;
-};
-
-const setLocalGemsForAddress = (address, value) => {
-  const saved = JSON.parse(localStorage.getItem("localGems") || "{}");
-  saved[address.toLowerCase()] = value;
-  localStorage.setItem("localGems", JSON.stringify(saved));
-};
-
 export function Web3Provider({ children }) {
   const [account, setAccount] = useState(null);
   const [username, setUsername] = useState("");
@@ -36,6 +22,10 @@ export function Web3Provider({ children }) {
   const [nftContract, setNftContract] = useState(null);
   const [marketplaceContract, setMarketplaceContract] = useState(null);
   const [view, setView] = useState("home");
+  const viewRef = React.useRef(view);
+  React.useEffect(() => {
+    viewRef.current = view;
+  }, [view])
   const [showModal, setShowModal] = useState(false);
   const [adminAddress, setAdminAddress] = useState(null);
   const [gemPrice, setGemPrice] = useState(null);
@@ -45,15 +35,18 @@ export function Web3Provider({ children }) {
 
   const localGems = localGemsState;
 
+  const getLocalGems = (address) => {
+    const saved = JSON.parse(localStorage.getItem("localGems") || "{}");
+    return saved[address.toLowerCase()] || 0;
+  };
+
   const setLocalGems = (valueOrUpdater) => {
-  if (!account) return;
-  const current = getLocalGems(account);
-  const newValue = typeof valueOrUpdater === "function"
-    ? valueOrUpdater(current)
-    : valueOrUpdater;
-  setLocalGemsForAddress(account, newValue);
-  setLocalGemsState(newValue);
-};
+    if (!account) return;
+    const newValue = typeof valueOrUpdater === "function"
+      ? valueOrUpdater(localGemsState)
+      : valueOrUpdater;
+    setLocalGemsState(newValue);
+  };
 
   const addLocalGem = () => {
     if (!account) return;
@@ -175,20 +168,24 @@ const fetchHistory = async () => {
   }
 };
 
+  const resetAppState = async () => {
+    try {
+      // ничего
+    } catch (err) {
+      console.error("❌ Ошибка при выходе:", err);
+    }
 
-
-  const resetAppState = () => {
-  setAccount(null);
-  setUsername("");
-  setGems(0);
-  setGemContract(null);
-  setNftContract(null);
-  setAdminAddress(null);
-  setGemPrice(null);
-  setTxHistory([]);
-  setLocalGemsState(0); // ← ВАЖНО: сброс локального баланса
-  setView("home");
-};
+    // Сброс состояния
+    setAccount(null);
+    setUsername("");
+    setGems(0);
+    setGemContract(null);
+    setNftContract(null);
+    setAdminAddress(null);
+    setGemPrice(null);
+    setTxHistory([]);
+    setView("home");
+  };
 
   const handleCreate = async ({ manual, manualAddress }) => {
   try {
@@ -242,7 +239,7 @@ const fetchHistory = async () => {
     setUsername(nickname);
     setAccount(cleanAddress);
     setGems(Number(await gameContract.balanceOf(cleanAddress)));
-    setLocalGems(getLocalGems(cleanAddress));
+    setLocalGems(resp.data.local_gems || 0); // ✅ берём из S3
 
      // 🔽 Загрузка gemPrice
     const price = await gameContract.gemPrice();
@@ -252,7 +249,7 @@ const fetchHistory = async () => {
     setNftContract(itemContract);
     setView("game");
 
-    console.log(`📥 Загружено локальных GEM для ${cleanAddress}:`, getLocalGems(cleanAddress));
+    console.log(`📥 Загружено локальных GEM для ${cleanAddress}:`, resp.data.local_gems || 0);
   } catch (err) {
     console.error("Ошибка входа:", err);
     alert("⚠️ Не удалось войти");
@@ -260,39 +257,49 @@ const fetchHistory = async () => {
 };
 
   const handleAdminLogin = async () => {
-  console.log("🔐 handleAdminLogin вызван");
-
-  try {
-    const { address, gameContract, itemContract } = await connectWithMetamask();
-    const cleanAddress = address.toLowerCase();
-
-    setAccount(cleanAddress);
-    setGemContract(gameContract);
-    setNftContract(itemContract);
-    setLocalGems(getLocalGems(cleanAddress));
-
-    
-
-    setView("admin");
-  } catch (err) {
-    console.error("Ошибка при входе админа:", err);
-    alert("Не удалось подключиться через MetaMask");
-  }
-};
-
-  const sendLocalGemsToContract = async (amount) => {
     try {
-      const tx = await gemContract.depositGems(amount);
-      await tx.wait();
-      const balance = await gemContract.balanceOf(account);
-      setGems(Number(balance));
-      await fetchHistory();
-      return true;
+      resetAppState(true);
+      const { address, gameContract, itemContract } = await connectWithMetamask();
+      const cleanAddress = address.toLowerCase();
+
+      console.log("Админ вошёл, адрес:", cleanAddress);
+
+      setAccount(cleanAddress);
+      setGemContract(gameContract);
+      setNftContract(itemContract);
+
+      setView("admin");
+      viewRef.current = "admin"; // ✅ ВАЖНО: обновить вручную
     } catch (err) {
-      console.error("Ошибка при отправке GEM в контракт:", err);
-      return false;
+      console.error("Ошибка при входе админа:", err);
+      alert("Не удалось подключиться через MetaMask");
     }
   };
+
+  const sendLocalGemsToContract = async (amount) => {
+  try {
+    const tx = await gemContract.depositGems(amount);
+    await tx.wait();
+
+    const balance = await gemContract.balanceOf(account);
+    setGems(Number(balance));
+
+    const updated = Math.max(0, localGemsState - amount); // ✅
+    setLocalGems(updated);  // 👈 НЕ через prev => prev - amount
+
+    await axios.patch(`${BACKEND_URL}/profile/${account}`, {
+      local_gems: updated,
+    });
+
+    console.log("📤 [send] Сохранили локальные GEM в S3:", updated);
+
+    await fetchHistory();
+    return true;
+  } catch (err) {
+    console.error("❌ Ошибка при отправке GEM в контракт:", err);
+    return false;
+  }
+};
 
   const buyGems = async (count) => {
     try {
@@ -316,6 +323,50 @@ const fetchHistory = async () => {
       return false;
     }
   };
+
+  // === Подписка на смену аккаунта в MetaMask ===
+  React.useEffect(() => {
+    if (typeof window.ethereum === "undefined") return;
+
+    const handleAccountsChanged = async (accounts) => {
+    setView("home");
+    if (accounts.length === 0) {
+      resetAppState(); // пользователь отключил MetaMask
+      return;
+    }
+
+    const newAddress = accounts[0].toLowerCase();
+    console.log("🔄 [MetaMask] Аккаунт изменён:", newAddress);
+
+    setAccount(newAddress);
+    setLocalGems(getLocalGems(newAddress));
+
+    if (viewRef.current === "admin") return; // 💡 Не делать запросы, если в режиме админа
+
+    try {
+      // Проверим, есть ли профиль
+      const resp = await axios.get(`${BACKEND_URL}/profile/${newAddress}`);
+      const nickname = resp.data.nickname || "Без имени";
+      setUsername(nickname);
+
+      if (gemContract) {
+        const gemsBalance = await gemContract.balanceOf(newAddress);
+        setGems(Number(gemsBalance));
+      }
+    } catch (err) {
+      console.warn("⚠️ Новый аккаунт не найден в S3:", err);
+      setUsername("Без имени");
+    }
+  };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      if (window.ethereum?.removeListener) {
+        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      }
+    };
+  }, [gemContract]);
 
   return (
     <Web3Context.Provider

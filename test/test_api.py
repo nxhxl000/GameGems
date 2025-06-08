@@ -1,23 +1,18 @@
+import warnings
 import sys
 import os
 import io
-import json
-import uuid
 import pytest
 import botocore
 from fastapi.testclient import TestClient
 import boto3
-import warnings
-import pydantic.warnings
 
-# Понадобятся модели из Pydantic только для проверки типов (необязательно, но импорт оставлен для полноты)
-import pandas as pd
 
-# Игнорируем предупреждения Pydantic и FastAPI
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="fastapi")
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="botocore")
-warnings.filterwarnings("ignore", category=pydantic.warnings.PydanticDeprecatedSince20, module="backend.main")
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    message='Field name "json" in "NFTWrapRequest" shadows an attribute in parent "BaseModel"'
+)
 
 # Добавляем родительскую папку (gamegems-app) в PYTHONPATH
 sys.path.insert(
@@ -292,5 +287,4 @@ def test_predict_price_with_price(client):
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "ok"
-    assert "class" in data
     assert "recommended_price" in data

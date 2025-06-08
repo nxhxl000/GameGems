@@ -316,6 +316,12 @@
   object-fit: contain;
 }
 
+.item.nft-border {
+  border: 2px solid gold;
+  border-radius: 8px;
+  box-shadow: 0 0 10px gold;
+}
+
 .empty {
   color: #aaa;
 }

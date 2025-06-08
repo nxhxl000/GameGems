@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useWeb3 } from "../contexts/Web3Provider";
 import axios from "axios";
 import { Interface } from "ethers";
+import { Log } from "ethers";
 
 export default function WrapNFTPanel({ inventory, setInventory, setNftInventory }) {
   const {gemContract, nftContract, account, backendUrl } = useWeb3(); // <- обязательно берем контракты из контекста
@@ -82,39 +83,32 @@ export default function WrapNFTPanel({ inventory, setInventory, setNftInventory 
     console.log("✅ Транзакция подтверждена!");
     console.log("🧾 Все логи транзакции:", receipt.logs);
 
-    const ifaceGameGems = new Interface([
-      "event ItemWrapped(address indexed player, uint256 tokenId, string itemType, uint8 rarity, uint8 bonus, string uri)",
-    ]);
-    const ifaceGameItem = new Interface([
-      "event NFTMinted(address indexed to, uint256 tokenId, string itemType, uint8 rarity, uint8 bonus, string uri)",
-    ]);
-
     let tokenId;
-      for (const log of receipt.logs) {
-        try {
-          const logAddress = log.address.toLowerCase();
-          if (logAddress === gameGemsAddress) {
-            const parsed = ifaceGameGems.parseLog(log);
-            console.log("📨 Найдено событие GameGems:", parsed.name, parsed.args);
-            if (parsed.name === "ItemWrapped") {
-              tokenId = Number(parsed.args.tokenId);
-              break;
-            }
-          } else if (logAddress === gameItemNFTAddress) {
-            const parsed = ifaceGameItem.parseLog(log);
-            console.log("📨 Найдено событие GameItemNFT:", parsed.name, parsed.args);
-            if (parsed.name === "NFTMinted") {
-              tokenId = Number(parsed.args.tokenId);
-              break;
-            }
-          }
-        } catch (parseErr) {
-          console.warn("⚠️ Лог не подошёл:", parseErr);
-        }
-      }
+    for (const log of receipt.logs) {
+      try {
+        const logAddress = log.address.toLowerCase();
 
-    if (!tokenId) throw new Error("❌ Событие ItemWrapped или NFTMinted не найдено");
-    console.log("🎉 NFT успешно создан. Token ID:", tokenId);
+        if (logAddress === gameGemsAddress) {
+          const parsed = gemContract.interface.parseLog(log);
+          console.log("📨 Событие от GameGems:", parsed.name, parsed.args);
+          if (parsed.name === "ItemWrapped") {
+            tokenId = Number(parsed.args.tokenId);
+            break;
+          }
+
+        } else if (logAddress === gameItemNFTAddress) {
+          const parsed = nftContract.interface.parseLog(log);
+          console.log("📨 Событие от GameItemNFT:", parsed.name, parsed.args);
+          if (parsed.name === "NFTMinted") {
+            tokenId = Number(parsed.args.tokenId);
+            break;
+          }
+        }
+
+      } catch (err) {
+        console.warn("⚠️ Лог не подошёл:", err);
+      }
+    }
 
     const newNFT = {
       tokenId,
@@ -125,6 +119,7 @@ export default function WrapNFTPanel({ inventory, setInventory, setNftInventory 
       uri,
       owner: account,
     };
+    console.log("📤 Отправка в /nft/save:", newNFT);
 
     console.log("💾 Сохраняем NFT в S3...");
     await axios.post(`${backendUrl}/nft/save`, newNFT);

@@ -40,7 +40,7 @@ const {
   dropTokens,
   isAdmin,
   isAdminReady, // 👈 обязательно
-  } = useAdminData(gemContract, view === "admin", account);
+  }  = useAdminData(view === "admin", account);
 
   const [gemCount, setGemCount] = useState("");
   const { localGems, setLocalGems } = useWeb3();

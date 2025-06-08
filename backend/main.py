@@ -1,5 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Optional
 import boto3
@@ -41,17 +43,8 @@ SELL_PRICES_KEY = "config/sell_prices.json"
 MARKETPLACE_PREFIX = 'marketplace/'
 USER_NFT_PREFIX = 'nft_data/'
 
-# === FastAPI-приложение ===
-app = FastAPI()
 
-# === CORS ===
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Можно указать конкретные источники
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 class NFTPriceRequest(BaseModel):
     itemType: str
@@ -85,6 +78,7 @@ class Profile(BaseModel):
     address: str
     created_at: Optional[str] = None
     nickname: Optional[str] = None
+    local_gems: Optional[int] = 0  # 💎 Добавляем
 
 # === Локальные хранилища в памяти ===
 user_inventory = {}
@@ -94,7 +88,7 @@ sell_prices = {}
 # === Работа с инвентарём ===
 def save_inventory_to_s3(address: str):
     key = f"{INVENTORY_PREFIX}{address.lower()}.json"
-    data = json.dumps([item.dict() for item in user_inventory[address]])
+    data = json.dumps([item.model_dump() for item in user_inventory[address]])
     s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=data)
 
 def load_inventory_from_s3(address: str):
@@ -112,7 +106,7 @@ def load_inventory_from_s3(address: str):
 # === Работа с профилем ===
 def save_profile_to_s3(profile: Profile):
     key = f"{PROFILE_PREFIX}{profile.address.lower()}.json"
-    s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=profile.json())
+    s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=profile.model_dump_json())
 
 def load_profile_from_s3(address: str):
     key = f"{PROFILE_PREFIX}{address.lower()}.json"
@@ -147,9 +141,23 @@ def save_sell_prices():
 
 # === API ===
 
-@app.on_event("startup")
-def startup_event():
-    load_sell_prices()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🔁 Lifespan init: запуск сервера")
+    load_sell_prices()  # 👈 если раньше это было в startup_event, добавь сюда
+    yield
+    print("⛔ Lifespan shutdown: сервер остановлен")
+
+app = FastAPI(lifespan=lifespan)
+
+# === CORS ===
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Можно указать конкретные источники
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
@@ -184,6 +192,24 @@ def get_profile(address: str):
     if profile is None:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     return profile
+@app.patch("/profile/{address}")
+def patch_profile(address: str, updates: dict = Body(...)):
+    address = address.lower()
+    if address not in user_profiles:
+        load_profile_from_s3(address)
+
+    profile = user_profiles.get(address)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+
+    # Применяем обновления
+    for key, value in updates.items():
+        if hasattr(profile, key):
+            setattr(profile, key, value)
+
+    user_profiles[address] = profile
+    save_profile_to_s3(profile)
+    return {"status": "ok", "updated": updates}
 
 @app.post("/profile/")
 def create_or_update_profile(profile: Profile):
@@ -265,6 +291,7 @@ def create_nft_json(payload: NFTWrapRequest):
 
 @app.post("/nft/save")
 def save_final_nft(data: FinalNFT):
+    print("📥 Получено тело запроса:", data)
     # Ключ с одним уровнем вложенности: NFT/{tokenId}.json
     key = f"NFT/{data.tokenId}.json"
 
@@ -273,7 +300,7 @@ def save_final_nft(data: FinalNFT):
         s3.put_object(
             Bucket=BUCKET_NAME,
             Key=key,
-            Body=json.dumps(data.dict(), ensure_ascii=False),
+            Body=json.dumps(data.model_dump(), ensure_ascii=False),
             ContentType="application/json",
             ACL="public-read"
         )

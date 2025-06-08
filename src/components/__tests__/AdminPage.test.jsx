@@ -29,6 +29,7 @@ describe("AdminPage", () => {
     });
 
     window.alert = jest.fn();
+    window.confirm = jest.fn(() => true);
     jest.clearAllMocks();
   });
 
@@ -42,6 +43,45 @@ describe("AdminPage", () => {
     expect(screen.getByText(/500/)).toBeInTheDocument();
     expect(screen.getByText(/1.5 ETH/)).toBeInTheDocument();
     expect(screen.getByDisplayValue("10")).toBeInTheDocument();
+  });
+
+  it("sorts accounts by username", async () => {
+    await act(async () => {
+      render(<AdminPage {...mockProps} />);
+    });
+    fireEvent.click(screen.getByText(/Имя/));
+    const rows = screen.getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("Alice");
+    expect(rows[2]).toHaveTextContent("Bob");
+  });
+
+  it("renders accounts in original order when no sorting is applied", async () => {
+    await act(async () => {
+      render(<AdminPage {...mockProps} />);
+    });
+    const rows = screen.getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("Alice");
+    expect(rows[2]).toHaveTextContent("Bob");
+  });
+
+  it("сохраняет 0, если введено некорректное значение", async () => {
+    axios.post.mockResolvedValue({});
+    await act(async () => {
+      render(<AdminPage {...mockProps} />);
+    });
+
+    fireEvent.change(screen.getByDisplayValue("10"), {
+      target: { value: "abc" },
+    });
+
+    fireEvent.click(screen.getByText(/Сохранить цены/));
+
+    await waitFor(() => {
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ common: 0 })
+      );
+    });
   });
 
   it("calls onRefresh when 'Обновить' clicked", async () => {
@@ -63,7 +103,7 @@ describe("AdminPage", () => {
     expect(mockProps.onAdminDrop).toHaveBeenCalledWith(50);
   });
 
-  it("does not call onAdminDrop with invalid input", async () => {
+  it("does not call onAdminDrop with empty input", async () => {
     await act(async () => {
       render(<AdminPage {...mockProps} />);
     });
@@ -72,6 +112,7 @@ describe("AdminPage", () => {
     });
     fireEvent.click(screen.getByText("Добавить"));
     expect(mockProps.onAdminDrop).not.toHaveBeenCalled();
+    expect(window.alert).toHaveBeenCalledWith("Введите положительное количество GEM");
   });
 
   it("sorts accounts by balance", async () => {
@@ -97,6 +138,7 @@ describe("AdminPage", () => {
   });
 
   it("shows alert on axios.post error", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
     axios.post.mockRejectedValue(new Error("Network error"));
     await act(async () => {
       render(<AdminPage {...mockProps} />);
@@ -105,6 +147,7 @@ describe("AdminPage", () => {
     await waitFor(() => {
       expect(window.alert).toHaveBeenCalledWith("Не удалось сохранить цены");
     });
+    console.error.mockRestore();
   });
 
   it("calls onBack when 'Назад' clicked", async () => {
@@ -124,7 +167,6 @@ describe("AdminPage", () => {
   });
 
   it("calls onWithdraw when 'Вывод ETH' clicked и подтверждено", async () => {
-    window.confirm = jest.fn(() => true);
     await act(async () => {
       render(<AdminPage {...mockProps} />);
     });
@@ -132,18 +174,28 @@ describe("AdminPage", () => {
     expect(mockProps.onWithdraw).toHaveBeenCalled();
   });
 
-  it("не вызывает onAdminDrop при 0 или отрицательном значении", async () => {
+  it("не вызывает onAdminDrop при 0 или отрицательном значении и показывает alert", async () => {
     await act(async () => {
       render(<AdminPage {...mockProps} />);
     });
-
     const input = screen.getByPlaceholderText(/Количество GEM/i);
+
+    // Тестируем 0
     fireEvent.change(input, { target: { value: "0" } });
     fireEvent.click(screen.getByText("Добавить"));
+    expect(window.alert).toHaveBeenCalledWith("Введите положительное количество GEM");
     expect(mockProps.onAdminDrop).not.toHaveBeenCalled();
 
+    // Тестируем отрицательное значение
     fireEvent.change(input, { target: { value: "-5" } });
     fireEvent.click(screen.getByText("Добавить"));
+    expect(window.alert).toHaveBeenCalledWith("Введите положительное количество GEM");
+    expect(mockProps.onAdminDrop).not.toHaveBeenCalled();
+
+    // Тестируем NaN (например, нечисловой ввод)
+    fireEvent.change(input, { target: { value: "abc" } });
+    fireEvent.click(screen.getByText("Добавить"));
+    expect(window.alert).toHaveBeenCalledWith("Введите положительное количество GEM");
     expect(mockProps.onAdminDrop).not.toHaveBeenCalled();
   });
 
@@ -174,11 +226,51 @@ describe("AdminPage", () => {
   });
 
   it("не вызывает onWithdraw, если отменено подтверждение", async () => {
-    window.confirm = jest.fn(() => false);
+    window.confirm.mockReturnValue(false);
     await act(async () => {
       render(<AdminPage {...mockProps} />);
     });
     fireEvent.click(screen.getByRole("button", { name: /Вывод ETH/i }));
     expect(mockProps.onWithdraw).not.toHaveBeenCalled();
+  });
+  
+  it("переключает сортировку по возрастанию/убыванию при повторном клике", async () => {
+    await act(async () => {
+      render(<AdminPage {...mockProps} />);
+    });
+
+    // Первый клик — сортировка по возрастанию
+    fireEvent.click(screen.getByText(/Имя/));
+
+    // Второй клик — срабатывает setSortAsc(!sortAsc)
+    fireEvent.click(screen.getByText(/Имя/));
+
+    // Теперь Alice и Bob должны поменяться местами
+    const rows = screen.getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("Bob");
+    expect(rows[2]).toHaveTextContent("Alice");
+  });
+  
+
+  it("обрабатывает ошибку axios.get в fetchPrices", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    axios.get.mockRejectedValue(new Error("Network error"));
+    await act(async () => {
+      render(<AdminPage {...mockProps} />);
+    });
+    await waitFor(() => {
+      expect(console.error).toHaveBeenCalledWith("Ошибка загрузки цен:", expect.any(Error));
+    });
+    console.error.mockRestore();
+  });
+
+  it("покрывает дефолттный случай сортировки", async () => {
+    await act(async () => {
+      render(<AdminPage {...mockProps} />);
+    });
+    // Проверяем, что при sortBy = null (дефолтное состояние) аккаунты рендерятся в исходном порядке
+    const rows = screen.getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("Alice");
+    expect(rows[2]).toHaveTextContent("Bob");
   });
 });

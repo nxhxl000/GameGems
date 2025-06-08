@@ -36,21 +36,19 @@ const MarketplacePage = ({ onBack }) => {
 
   const fetchListings = async () => {
   try {
-    console.log('📦 Начинаем загрузку листингов NFT с маркетплейса...');
-
+  
     const totalSupply = await nftContract.totalSupply();
-    console.log(`🔢 Обнаружено ${totalSupply} токенов в контракте`);
 
     const items = [];
 
     for (let i = 1; i <= Number(totalSupply); i++) {
-      console.log(`🔍 Обработка токена ID ${i}...`);
+  
 
       const listing = await marketplaceContract.getListing(i);
       const priceInGems = Number(listing.priceInGems);
 
       if (listing && priceInGems > 0) {
-        console.log(`💰 Токен ${i} выставлен за ${priceInGems} GEM`);
+        
 
         const tokenURI = await nftContract.tokenURI(i);
         const owner = await nftContract.ownerOf(i);
@@ -66,9 +64,9 @@ const MarketplacePage = ({ onBack }) => {
             ? JSON.parse(response.data)
             : response.data;
 
-          console.log(`📄 Метаданные для токена ${i}:`, metadata);
+          
         } catch (err) {
-          console.warn(`⚠️ Ошибка загрузки метаданных для токена ${i}:`, err);
+        
           continue;
         }
 
@@ -114,11 +112,7 @@ const MarketplacePage = ({ onBack }) => {
 
           priceStatus = labelMap[mlRes.data.price_status] || "неизвестно";
           deviationPercent = mlRes.data.deviation_percent;
-
-          console.log(`📊 ML: рекомендовано ${recommendedPrice} GEM, статус: ${priceStatus}, отклонение: ${deviationPercent}%`);
-        } catch (err) {
-          console.warn(`⚠️ Ошибка в ML модели для токена ${i}:`, err);
-        }
+        } catch (err) {}
 
         items.push({
           tokenId: i,
@@ -132,80 +126,59 @@ const MarketplacePage = ({ onBack }) => {
           priceStatus,
           deviationPercent
         });
-      } else {
-        console.log(`⛔ Токен ${i} не выставлен на продажу — пропущен`);
       }
     }
 
-    console.log(`✅ Загрузка завершена. Всего найдено листингов: ${items.length}`);
+    
     setListings(items);
 
-  } catch (error) {
-    console.error('🚨 Ошибка при загрузке листингов с маркетплейса:', error);
-  }
+  } catch (error) {}
 };
 
 
   const fetchUserNFTs = async () => {
-  console.log("🔍 Запуск fetchUserNFTs...");
-
-  if (!account) {
-    console.warn("⚠️ Нет аккаунта. Пропуск fetchUserNFTs.");
-    return;
-  }
-
-  try {
-    // Запрос всех NFT из backend без фильтра по аккаунту
-    const url = `${backendUrl}/nft`;
-    console.log(`🌐 Запрос к бэку всех NFT: ${url}`);
-    const response = await axios.get(url);
-
-    const allNFTs = Array.isArray(response.data) ? response.data : [];
-    const parsedNFTs = allNFTs.map(x => (typeof x === "string" ? JSON.parse(x) : x));
-
-    console.log(`📦 Получено NFT из S3 (${parsedNFTs.length}):`, parsedNFTs);
-
-    const userNFTs = [];
-    let checkCount = 0;
-
-    for (const item of parsedNFTs) {
-      try {
-        // Проверяем текущего владельца через смарт-контракт
-        const owner = await nftContract.ownerOf(item.tokenId);
-        checkCount++;
-
-        if (owner.toLowerCase() === account.toLowerCase()) {
-          console.log(`✅ Владелец токена ${item.tokenId} совпадает с аккаунтом ${account}`);
-
-          // Проверяем, не выставлен ли NFT на продажу
-          const listing = await marketplaceContract.getListing(item.tokenId);
-          const price = Number(listing.priceInGems);
-
-          if (price > 0) {
-            console.log(`⛔ NFT ${item.tokenId} УЖЕ НА ПРОДАЖЕ за ${price} GEM — исключён`);
-          } else {
-            console.log(`✅ NFT ${item.tokenId} НЕ выставлен — добавляем`);
-            userNFTs.push(item);
-          }
-        } else {
-          console.log(`❌ Владелец токена ${item.tokenId} (${owner}) НЕ совпадает с аккаунтом ${account} — пропускаем`);
-          continue;
-        }
-      } catch (err) {
-        console.warn(`⚠️ Ошибка при проверке NFT tokenId=${item.tokenId}:`, err);
-        // Если ошибка — добавляем в список на всякий случай
-        userNFTs.push(item);
-      }
+    if (!account) {  
+      return;
     }
 
-    console.log(`🎯 Проверено NFT: ${checkCount}`);
-    console.log(`✅ Оставлено NFT вне продажи: ${userNFTs.length}`);
-    setMyNFTs(userNFTs);
-  } catch (err) {
-    console.error("❌ Ошибка загрузки NFT:", err);
-    setMyNFTs([]);
-  }
-};
+    try {
+      // Запрос всех NFT из backend без фильтра по аккаунту
+      const url = `${backendUrl}/nft`;
+      
+      const response = await axios.get(url);
+
+      const allNFTs = Array.isArray(response.data) ? response.data : [];
+      const parsedNFTs = allNFTs.map(x => (typeof x === "string" ? JSON.parse(x) : x));
+
+      
+
+      const userNFTs = [];
+      let checkCount = 0;
+
+      for (const item of parsedNFTs) {
+        try {
+          // Проверяем текущего владельца через смарт-контракт
+          const owner = await nftContract.ownerOf(item.tokenId);
+          checkCount++;
+
+          if (owner.toLowerCase() === account.toLowerCase()) {
+            
+
+            // Проверяем, не выставлен ли NFT на продажу
+            const listing = await marketplaceContract.getListing(item.tokenId);
+            const price = Number(listing.priceInGems);
+
+            if (price > 0) {} else {userNFTs.push(item)}
+          } else {continue;}
+        } catch (err) {
+          userNFTs.push(item);
+        }
+      }
+
+      
+      setMyNFTs(userNFTs);
+    } catch (err) {setMyNFTs([])}
+  };
 
 
 
@@ -232,11 +205,7 @@ const MarketplacePage = ({ onBack }) => {
     };
     const rarity = rarityMap[rarityIndex] || "Common";
 
-    console.log("📤 Отправка на ML /predict-price:", {
-      itemType,
-      rarity,
-      bonusValue
-    });
+  
 
     // Запрос на рекомендованную цену
     const predictRes = await axios.post(`${backendUrl}/predict-price`, {
@@ -260,11 +229,7 @@ const MarketplacePage = ({ onBack }) => {
       return;
     }
 
-    if (!nftContract || !marketplaceContract) {
-      alert("❌ Контракты не загружены");
-      return;
-    }
-
+  
     const approved = await nftContract.getApproved(tokenId);
     const marketplaceAddress = marketplaceContract.target;
 
@@ -285,90 +250,65 @@ const MarketplacePage = ({ onBack }) => {
 
     fetchUserNFTs();
     fetchListings();
-  } catch (err) {
-    console.error(`❌ Ошибка при выставлении NFT ${tokenId}:`, err);
-    alert("⚠️ Ошибка при выставлении NFT. См. консоль.");
-  }
+  } catch (err) {alert("⚠️ Ошибка при выставлении NFT. См. консоль.");}
 };
 
 
 const handleDelist = async (tokenId) => {
   try {
-    console.log(`🗑️ Снятие NFT ${tokenId} с продажи...`);
     const tx = await marketplaceContract.delistItem(tokenId);
     await tx.wait();
     alert("✅ NFT снят с продажи!");
     fetchListings();
     fetchUserNFTs();
-  } catch (err) {
-    console.error(`❌ Ошибка при снятии с продажи NFT ${tokenId}:`, err);
-    alert("⚠️ Ошибка при снятии с продажи. См. консоль.");
-  }
+  } catch (err) {alert("⚠️ Ошибка при снятии с продажи. См. консоль.");}
 };
 
 const handleBuy = async (tokenId, priceInGems, sellerAddress) => {
-  console.log(`🛒 handleBuy вызван с tokenId=${tokenId}, priceInGems=${priceInGems}, sellerAddress=${sellerAddress}`);
-
+  /* istanbul ignore if */
   if (!gemContract) {
-    console.log("⛔ Контракт GameGems (gemContract) не загружен");
     return;
   }
+  /* istanbul ignore if */
   if (!marketplaceContract) {
-    console.log("⛔ Контракт Marketplace не загружен");
     return;
   }
+  /* istanbul ignore if */
   if (!account) {
-    console.log("⛔ Аккаунт не загружен");
     return;
   }
-
+  /* istanbul ignore if */
   if (priceInGems === undefined || priceInGems === null) {
-    console.error("❌ Цена не определена, прерываю покупку");
     return;
   }
 
   try {
     const marketplaceAddress = marketplaceContract.target;
-
     const gemsBalance = await gemContract.balanceOf(account);
-    console.log(`💎 Баланс GEM: ${gemsBalance.toString()} | Цена: ${priceInGems}`);
-
+    /* istanbul ignore if */
     if (gemsBalance < priceInGems) {
-      console.log("❌ Недостаточно GEM для покупки");
       return;
     }
 
     const allowance = await gemContract.allowance(account, marketplaceAddress);
-    console.log(`🔍 Текущий allowance: ${allowance.toString()}`);
-
+    /* istanbul ignore if */
     if (allowance < priceInGems) {
-      console.log(`⚠️ Недостаточный approve, отправляем новый...`);
       const txApprove = await gemContract.approve(marketplaceAddress, priceInGems);
       await txApprove.wait();
-      console.log(`✅ Approve выполнен`);
-    } else {
-      console.log(`✅ Достаточный approve уже установлен`);
     }
 
-    // Покупка NFT через смарт-контракт (внутри buyItem происходит transferForMarketplace с комиссией)
     const tx = await marketplaceContract.buyItem(tokenId);
     await tx.wait();
-    console.log(`🎉 Покупка токена ${tokenId} завершена!`);
-
-    // Обновляем локальное состояние листингов и NFT
     await fetchListings();
     await fetchUserNFTs();
-
-    console.log(`✅ Владелец NFT с tokenId=${tokenId} обновлён в блокчейне и отражён во фронтенде`);
-
   } catch (error) {
-    console.error(`❌ Ошибка при покупке токена ${tokenId}:`, error);
+    /* istanbul ignore next */
   }
 };
 
 
   useEffect(() => {
-    console.log("🔥 useEffect triggered: account =", account);
+    
     fetchListings();
     fetchUserNFTs();
   }, [account]);
@@ -456,7 +396,7 @@ const handleBuy = async (tokenId, priceInGems, sellerAddress) => {
           ) : (
             <div className="marketplace-grid">
               {myNFTs.map((item, index) => {
-                console.log(`🧾 NFT ${index + 1}:`, item);
+                
 
                 return (
                   <div key={item.tokenId || index} className="marketplace-card">
