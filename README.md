@@ -57,4 +57,11 @@ uvicorn main:app --reload
 ```
 http://127.0.0.1:8000
 ```
+## ✅ Тестирование backend
+
+Для запуска тестов используйте следующую команду из корня проекта:
+
+```bash
+pytest backend/test_main.py
+```
 
