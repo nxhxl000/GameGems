@@ -27,6 +27,7 @@ backend/
 ```
 
 
+Перейди в папку backend
 ```bash
 cd backend
 ```
@@ -51,3 +52,9 @@ pip install -r requirements.txt
 ```bash
 uvicorn main:app --reload
 ```
+
+После запуска сервер будет доступен по адресу:
+```
+http://127.0.0.1:8000
+```
+
