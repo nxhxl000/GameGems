@@ -154,7 +154,7 @@ npm run dev
 ```
 Перейдите в браузере по адресу:
 ```
-[npm run dev](http://localhost:5173/)
+http://localhost:5173/
 ```
 ## ✅ Тестирование Frontend 
 Тесты написаны с использованием Jest и React Testing Library для основных компонентов интерфейса.
