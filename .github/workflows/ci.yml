@@ -26,7 +26,7 @@ jobs:
           cd backend
           pip install -r requirements.txt
       - name: Вывод имени бакета
-        run: echo "BUCKET_NAME is $BUCKET_NAME"
+        run: echo "S3_BUCKET_NAME is S3_BUCKET_NAME"
       - name: Запуск тестов backend
         run: |
           pytest test/test_api.py
