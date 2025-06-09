@@ -128,11 +128,6 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
         return;
       }
 
-      if (!equipment || Object.keys(equipment).length === 0) {
-        console.log("⏳ Ожидаем загрузку equipment перед загрузкой NFT");
-        return;
-      }
-
       try {
         const res = await axios.get(`${backendUrl}/nft`);
         const allNFTs = Array.isArray(res.data) ? res.data : [];
@@ -188,6 +183,8 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
 
   loadNFTs();
   }, [account, backendUrl, nftContract, equipment]); // 🧠 equipment обязательно!
+
+  
 
   React.useEffect(() => {
     const fetchPrices = async () => {
@@ -294,35 +291,73 @@ export default function GameScreen({ onAccountPage, onBack, onMarketplace }) {
     e.preventDefault();
   };
 
-  const onDropToInventory = (e) => {
+ const onDropToInventory = (e) => {
   e.preventDefault();
   const item = JSON.parse(e.dataTransfer.getData("item"));
+  console.log("📥 Перетаскиваем в инвентарь:", item);
 
   setEquipment((prev) => {
     const newEquip = { ...prev };
     for (const slot in newEquip) {
       if (newEquip[slot]?.id === item.id) {
+        console.log(`❌ Удаляем из слота "${slot}" предмет:`, item);
         delete newEquip[slot];
         break;
       }
     }
+
+    // 💾 вручную сохраняем сразу после обновления
+    if (account) {
+      localStorage.setItem(`equipment_${account}`, JSON.stringify(newEquip));
+      console.log("💾 [manual save] equipment сохранён вручную после удаления:", newEquip);
+    }
+
     return newEquip;
   });
 
-  // ⚠️ Не добавляем обратно NFT-предметы
   if (item.fromNFT) {
-    console.log("🔁 NFT-предмет удалён из снаряжения, не добавляем в inventory:", item);
+    console.log("🔁 NFT-предмет, переносим обратно в nftInventory:", item);
+    setNftInventory((prev) => {
+      const exists = prev.some((nft) => `nft-${nft.tokenId}` === item.id);
+      if (exists) {
+        console.log("⚠️ Уже есть в nftInventory, не добавляем повторно:", item);
+        return prev;
+      }
+
+      const tokenId = item.id.replace("nft-", "");
+      const newNFT = {
+        tokenId,
+        itemType: item.type,
+        rarity: item.rarity,
+        image: item.image,
+        bonus: {
+          attribute: Object.keys(item.attributes)[0],
+          value: Object.values(item.attributes)[0],
+        },
+      };
+
+      console.log("✅ Добавляем обратно в nftInventory:", newNFT);
+      return [...prev, newNFT];
+    });
+
+    setTooltip({ visible: false, x: 0, y: 0, item: null });
     return;
   }
 
+  // 🎒 Обычный предмет — возвращаем в inventory
   setInventory((prev) => {
-    if (prev.find((i) => i.id === item.id)) return prev;
+    const exists = prev.some((i) => i.id === item.id);
+    if (exists) {
+      console.log("⚠️ Уже есть в обычном инвентаре, не добавляем:", item);
+      return prev;
+    }
+
+    console.log("✅ Добавляем обратно в обычный inventory:", item);
     return [...prev, item];
   });
 
   setTooltip({ visible: false, x: 0, y: 0, item: null });
 };
-
   const onDragOverInventory = (e) => {
     e.preventDefault();
   };

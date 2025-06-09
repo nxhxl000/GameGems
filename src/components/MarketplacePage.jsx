@@ -265,44 +265,62 @@ const handleDelist = async (tokenId) => {
 };
 
 const handleBuy = async (tokenId, priceInGems, sellerAddress) => {
-  /* istanbul ignore if */
+  console.log(`🛒 handleBuy вызван с tokenId=${tokenId}, priceInGems=${priceInGems}, sellerAddress=${sellerAddress}`);
+
   if (!gemContract) {
+    console.log("⛔ Контракт GameGems (gemContract) не загружен");
     return;
   }
-  /* istanbul ignore if */
   if (!marketplaceContract) {
+    console.log("⛔ Контракт Marketplace не загружен");
     return;
   }
-  /* istanbul ignore if */
   if (!account) {
+    console.log("⛔ Аккаунт не загружен");
     return;
   }
-  /* istanbul ignore if */
+
   if (priceInGems === undefined || priceInGems === null) {
+    console.error("❌ Цена не определена, прерываю покупку");
     return;
   }
 
   try {
     const marketplaceAddress = marketplaceContract.target;
+
     const gemsBalance = await gemContract.balanceOf(account);
-    /* istanbul ignore if */
+    console.log(`💎 Баланс GEM: ${gemsBalance.toString()} | Цена: ${priceInGems}`);
+
     if (gemsBalance < priceInGems) {
+      console.log("❌ Недостаточно GEM для покупки");
       return;
     }
 
     const allowance = await gemContract.allowance(account, marketplaceAddress);
-    /* istanbul ignore if */
+    console.log(`🔍 Текущий allowance: ${allowance.toString()}`);
+
     if (allowance < priceInGems) {
+      console.log(`⚠️ Недостаточный approve, отправляем новый...`);
       const txApprove = await gemContract.approve(marketplaceAddress, priceInGems);
       await txApprove.wait();
+      console.log(`✅ Approve выполнен`);
+    } else {
+      console.log(`✅ Достаточный approve уже установлен`);
     }
 
+    // Покупка NFT через смарт-контракт (внутри buyItem происходит transferForMarketplace с комиссией)
     const tx = await marketplaceContract.buyItem(tokenId);
     await tx.wait();
+    console.log(`🎉 Покупка токена ${tokenId} завершена!`);
+
+    // Обновляем локальное состояние листингов и NFT
     await fetchListings();
     await fetchUserNFTs();
+
+    console.log(`✅ Владелец NFT с tokenId=${tokenId} обновлён в блокчейне и отражён во фронтенде`);
+
   } catch (error) {
-    /* istanbul ignore next */
+    console.error(`❌ Ошибка при покупке токена ${tokenId}:`, error);
   }
 };
 

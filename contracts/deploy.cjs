@@ -61,6 +61,12 @@ async function main() {
   await saveABI("GameGems");
   await saveABI("GameItemNFT");
   await saveABI("GameMarketplace");
+
+  // === 7. Link GameMarketplace -> GameGems
+  const gameGems = await ethers.getContractAt("GameGems", gameGemsAddress);
+  const txSetMarketplace = await gameGems.setMarketplaceAddress(marketplaceAddress);
+  await txSetMarketplace.wait();
+  console.log("🔗 GameGems привязан к GameMarketplace:", marketplaceAddress);
 }
 
 main().catch((error) => {
